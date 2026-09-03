@@ -11,6 +11,7 @@ import ReskillingRoadmap from './components/ReskillingRoadmap';
 import RoiCalculator from './components/RoiCalculator';
 import Footer from './components/Footer';
 import LoginScreen from './components/LoginScreen';
+import SharedDiagnosisView from './components/SharedDiagnosisView';
 import { useSession } from './hooks/useSession';
 
 export default function App() {
@@ -25,6 +26,15 @@ export default function App() {
   const [roadmapPathTarget, setRoadmapPathTarget] = useState(null);
   const [roadmapPathIdOverride, setRoadmapPathIdOverride] = useState(null);
   const [roadmapCustomData, setRoadmapCustomData] = useState(null);
+  const [roadmapCustomKey, setRoadmapCustomKey] = useState(null);
+
+  // Un enlace compartido (/share/:id) se sirve sin sesion, antes que cualquier otra
+  // cosa — RoleDiagnosisCard ya oculta sus botones de accion cuando no recibe
+  // onSelectRoleForRoadmap ni userId, asi que esta vista queda de solo lectura.
+  const shareMatch = window.location.pathname.match(/^\/share\/([A-Za-z0-9-]+)/);
+  if (shareMatch) {
+    return <SharedDiagnosisView shareId={shareMatch[1]} />;
+  }
 
   const handleSelectJobForComparison = (job) => {
     if (!comparatorJobA) {
@@ -37,13 +47,15 @@ export default function App() {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // customRoadmap solo llega desde AIRolePredictor (plan generado por IA a medida).
-  // RoleSimulator llama esta misma funcion con 2 argumentos, asi que customRoadmap
-  // vuelve a null y ReskillingRoadmap usa sus 3 rutas curadas fijas, como siempre.
-  const handleRoleTransitionToRoadmap = (targetRole, pathIdOverride = null, customRoadmap = null) => {
+  // customRoadmap y customRoadmapKey solo llegan desde AIRolePredictor (plan
+  // generado por IA a medida, con su propia clave de progreso). RoleSimulator
+  // llama esta misma funcion con 2 argumentos, asi que ambos vuelven a null y
+  // ReskillingRoadmap usa sus 3 rutas curadas fijas, como siempre.
+  const handleRoleTransitionToRoadmap = (targetRole, pathIdOverride = null, customRoadmap = null, customRoadmapKey = null) => {
     setRoadmapPathTarget(targetRole);
     setRoadmapPathIdOverride(pathIdOverride);
     setRoadmapCustomData(customRoadmap);
+    setRoadmapCustomKey(customRoadmapKey);
     const el = document.getElementById('reskilling');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
@@ -99,11 +111,13 @@ export default function App() {
           {/* 4. Personalized Role Simulator */}
           <RoleSimulator
             onSelectRoleForRoadmap={handleRoleTransitionToRoadmap}
+            userId={session.user.id}
           />
 
           {/* 4b. AI-Powered Free-Text Role Predictor */}
           <AIRolePredictor
             onSelectRoleForRoadmap={handleRoleTransitionToRoadmap}
+            userId={session.user.id}
           />
 
           {/* 5. Head-to-Head Job Comparator */}
@@ -117,6 +131,8 @@ export default function App() {
             targetRole={roadmapPathTarget}
             pathIdOverride={roadmapPathIdOverride}
             customRoadmap={roadmapCustomData}
+            customRoadmapKey={roadmapCustomKey}
+            userId={session.user.id}
           />
 
           {/* 7. ROI Learning & Salary Growth Calculator */}

@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
-import { Sparkles, Search, Wand2, AlertTriangle, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Search, Wand2, AlertTriangle, RotateCcw, History, X } from 'lucide-react';
 import RoleDiagnosisCard from './RoleDiagnosisCard';
 import { AI_CUSTOM_PATH_ID } from './ReskillingRoadmap';
 import { supabase } from '../lib/supabaseClient';
+import {
+  getUserProfile,
+  saveUserProfile,
+  listDiagnosisHistory,
+  saveDiagnosisHistory,
+  deleteDiagnosisHistoryEntry,
+  buildCustomProgressKey,
+} from '../lib/userData';
 
 const COUNTRY_OPTIONS = [
   { id: '', label: 'Global / Otro' },
@@ -40,7 +48,7 @@ function isValidRoadmap(roadmap) {
   );
 }
 
-export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
+export default function AIRolePredictor({ onSelectRoleForRoadmap, userId }) {
   const [jobTitle, setJobTitle] = useState('');
   const [country, setCountry] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
@@ -50,6 +58,29 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
   const [lastSubmitted, setLastSubmitted] = useState('');
   const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
   const [roadmapError, setRoadmapError] = useState('');
+  const [history, setHistory] = useState([]);
+
+  // Al montar: precarga el ultimo puesto/pais consultado (perfil minimo) y el
+  // historial de diagnosticos previos, para no repreguntarle al usuario cada visita.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+
+    (async () => {
+      const [profile, hist] = await Promise.all([getUserProfile(userId), listDiagnosisHistory(userId)]);
+      if (cancelled) return;
+
+      if (profile) {
+        setJobTitle((prev) => prev || profile.current_job_title || '');
+        setCountry((prev) => prev || (profile.country && profile.country !== 'global' ? profile.country : ''));
+      }
+      setHistory(hist);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,6 +132,15 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
       setResult(body.role);
       setSubmittedTitle(trimmedTitle);
       setStatus('success');
+
+      // Guardado best-effort: no bloquea ni condiciona mostrar el diagnostico.
+      if (userId) {
+        saveUserProfile(userId, { currentRole: trimmedTitle, country });
+        saveDiagnosisHistory(userId, { jobTitle: trimmedTitle, country, diagnosis: body.role }).then((savedRow) => {
+          if (!savedRow) return;
+          setHistory((prev) => [savedRow, ...prev.filter((h) => h.id !== savedRow.id)].slice(0, 20));
+        });
+      }
     } catch {
       setStatus('error');
       setErrorMessage('No pudimos conectar con el servicio de predicción. Verifica tu conexión e intenta de nuevo.');
@@ -145,7 +185,14 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
         return;
       }
 
-      onSelectRoleForRoadmap(targetRole, AI_CUSTOM_PATH_ID, body.roadmap);
+      onSelectRoleForRoadmap(targetRole, AI_CUSTOM_PATH_ID, body.roadmap, buildCustomProgressKey(submittedTitle, country));
+
+      if (userId) {
+        saveDiagnosisHistory(userId, { jobTitle: submittedTitle, country, diagnosis: result, roadmap: body.roadmap }).then((savedRow) => {
+          if (!savedRow) return;
+          setHistory((prev) => [savedRow, ...prev.filter((h) => h.id !== savedRow.id)].slice(0, 20));
+        });
+      }
     } catch {
       setRoadmapError('No pudimos conectar con el servicio. Verifica tu conexión e intenta de nuevo.');
     } finally {
@@ -158,6 +205,34 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
     setResult(null);
     setErrorMessage('');
     setRoadmapError('');
+  };
+
+  // Reabre un diagnostico guardado sin volver a llamar al LLM. Si ese diagnostico
+  // ya tenia un roadmap generado, lo restaura tambien de inmediato.
+  const handleReopenHistoryEntry = (entry) => {
+    const entryCountry = entry.country === 'global' ? '' : entry.country;
+    setJobTitle(entry.job_title);
+    setCountry(entryCountry);
+    setSubmittedTitle(entry.job_title);
+    setResult(entry.diagnosis);
+    setStatus('success');
+    setErrorMessage('');
+    setRoadmapError('');
+    setLastSubmitted(`${entry.job_title.toLowerCase()}|${entryCountry}`);
+
+    if (entry.roadmap) {
+      onSelectRoleForRoadmap(
+        entry.diagnosis.targetTransitionRole,
+        AI_CUSTOM_PATH_ID,
+        entry.roadmap,
+        buildCustomProgressKey(entry.job_title, entry.country)
+      );
+    }
+  };
+
+  const handleDeleteHistoryEntry = (id) => {
+    setHistory((prev) => prev.filter((h) => h.id !== id));
+    deleteDiagnosisHistoryEntry(id);
   };
 
   return (
@@ -223,6 +298,38 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
           </form>
         </div>
 
+        {/* Historial: solo se muestra en reposo, para no competir con un resultado activo */}
+        {status === 'idle' && history.length > 0 && (
+          <div className="glass-panel rounded-2xl p-5 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <History className="w-4 h-4 text-purple-300" />
+              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Tu historial de consultas</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {history.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-dark-900 border border-slate-800 hover:border-purple-500/50 transition-all"
+                >
+                  <button
+                    onClick={() => handleReopenHistoryEntry(entry)}
+                    className="text-xs text-slate-200 hover:text-white font-medium"
+                  >
+                    {entry.job_title}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteHistoryEntry(entry.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-all"
+                    title="Eliminar del historial"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Loading skeleton */}
         {status === 'loading' && (
           <div className="glass-panel rounded-2xl p-6 border border-slate-800/90 animate-pulse-slow">
@@ -258,6 +365,7 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
             onSelectRoleForRoadmap={handleGenerateRoadmap}
             isGeneratingRoadmap={generatingRoadmap}
             roadmapError={roadmapError}
+            userId={userId}
           />
         )}
 

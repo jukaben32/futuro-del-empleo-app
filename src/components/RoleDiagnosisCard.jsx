@@ -1,13 +1,42 @@
-import React from 'react';
-import { Bot, User, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Bot, User, Sparkles, ArrowRight, CheckCircle2, Share2, Check } from 'lucide-react';
 import { getScoreColor } from '../lib/scoreColor';
+import { createSharedDiagnosis } from '../lib/userData';
 
-export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap, isGeneratingRoadmap = false, roadmapError = '' }) {
+// userId solo llega cuando el diagnostico se muestra dentro de la app logueada
+// (RoleSimulator/AIRolePredictor). En la pagina publica de un enlace compartido
+// (SharedDiagnosisView) no se pasa, y el boton de compartir se oculta solo,
+// igual que ya hace onSelectRoleForRoadmap.
+export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap, isGeneratingRoadmap = false, roadmapError = '', userId }) {
   const scoreTheme = getScoreColor(role.automationScore);
   // Curated roles (SIMULATOR_ROLES) carry their own hand-tuned badgeColor string.
   // AI-generated roles don't (the model is never trusted to emit CSS classes) —
   // fall back to a badge computed from the same score thresholds as the gauge.
   const badgeClass = role.badgeColor || `${scoreTheme.bg}/20 ${scoreTheme.text} ${scoreTheme.border}`;
+
+  const [shareStatus, setShareStatus] = useState('idle'); // idle | sharing | copied | error
+  const [shareUrl, setShareUrl] = useState('');
+
+  const handleShare = async () => {
+    if (!userId || shareStatus === 'sharing') return;
+    setShareStatus('sharing');
+
+    const id = await createSharedDiagnosis(userId, { jobTitle: role.title, diagnosis: role });
+    if (!id) {
+      setShareStatus('error');
+      return;
+    }
+
+    const url = `${window.location.origin}/share/${id}`;
+    setShareUrl(url);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // El portapapeles puede fallar (permisos, contexto no seguro) — igual
+      // mostramos el enlace como texto para copiarlo a mano.
+    }
+    setShareStatus('copied');
+  };
 
   return (
     <div className={`glass-panel rounded-2xl p-6 border ${scoreTheme.border} relative overflow-hidden transition-all duration-300 shadow-2xl ${scoreTheme.glow}`}>
@@ -23,7 +52,28 @@ export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap, isGene
             <span className="text-xs text-slate-400">
               Sector: <strong className="text-slate-200 capitalize">{role.sector}</strong>
             </span>
+
+            {userId && (
+              <button
+                onClick={handleShare}
+                disabled={shareStatus === 'sharing'}
+                className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-dark-900 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-all disabled:opacity-60"
+                title="Copiar un enlace público a este diagnóstico"
+              >
+                {shareStatus === 'copied' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+                <span>
+                  {shareStatus === 'sharing' ? 'Generando enlace...' : shareStatus === 'copied' ? '¡Enlace copiado!' : 'Compartir'}
+                </span>
+              </button>
+            )}
           </div>
+
+          {shareStatus === 'copied' && shareUrl && (
+            <p className="text-[11px] text-slate-500 mb-2 break-all">{shareUrl}</p>
+          )}
+          {shareStatus === 'error' && (
+            <p className="text-[11px] text-rose-400 mb-2">No pudimos generar el enlace. Intenta de nuevo.</p>
+          )}
 
           <h3 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
             {role.title}

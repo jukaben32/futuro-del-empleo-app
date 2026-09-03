@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Map,
   Circle,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { RESKILLING_PATHS } from '../data/futureJobsData';
+import { getRoadmapProgress, saveRoadmapProgress } from '../lib/userData';
 
 // Id sintetico para el roadmap generado por IA (api/generate-roadmap.js). Nunca
 // colisiona con los 3 ids fijos de RESKILLING_PATHS, que siempre empiezan con "path-".
@@ -33,15 +34,20 @@ const TARGET_ROLE_TO_PATH_ID = {
   'Diseñador Pedagógico de Aprendizaje Aumentado': 'path-operations-ai', // advice: AI tools for personalization
 };
 
-export default function ReskillingRoadmap({ targetRole, pathIdOverride, customRoadmap }) {
+export default function ReskillingRoadmap({ targetRole, pathIdOverride, customRoadmap, customRoadmapKey, userId }) {
   const [selectedPathId, setSelectedPathId] = useState(RESKILLING_PATHS[0].id);
   const [completedSteps, setCompletedSteps] = useState({}); // { pathId-stepIndex: boolean }
 
   // Cuando el predictor de IA genera un plan a medida (customRoadmap, desde
   // api/generate-roadmap.js), se añade como una 4ª pestaña junto a las 3 fijas
   // en vez de reemplazarlas — asi el usuario puede seguir comparando con las curadas.
+  // progressKey identifica el plan para persistir el progreso: los 3 fijos usan su
+  // propio id ("path-data-analyst", etc.), pero "ai-custom" es SIEMPRE el mismo id
+  // sin importar la profesion, asi que el progreso de dos profesiones distintas
+  // colisionaria bajo esa misma clave — customRoadmapKey (armado en AIRolePredictor
+  // a partir del puesto+pais normalizados) evita esa colision.
   const paths = customRoadmap
-    ? [...RESKILLING_PATHS, { ...customRoadmap, id: AI_CUSTOM_PATH_ID }]
+    ? [...RESKILLING_PATHS, { ...customRoadmap, id: AI_CUSTOM_PATH_ID, progressKey: customRoadmapKey || AI_CUSTOM_PATH_ID }]
     : RESKILLING_PATHS;
 
   // Adjust selection during render when a new target role arrives from RoleSimulator or
@@ -59,6 +65,38 @@ export default function ReskillingRoadmap({ targetRole, pathIdOverride, customRo
   }
 
   const activePath = paths.find(p => p.id === selectedPathId) || paths[0];
+  const progressKey = activePath.progressKey || activePath.id;
+
+  // Carga el progreso guardado de ESTE plan cada vez que cambia de pestaña (o al
+  // montar). No se re-lee el resto de rutas: cada una se carga la primera vez que
+  // se selecciona, igual que ya hacia la UI antes de tener persistencia.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+
+    (async () => {
+      const saved = await getRoadmapProgress(userId, progressKey);
+      if (cancelled) return;
+      setCompletedSteps((prev) => {
+        // Limpia cualquier entrada previa bajo el mismo prefijo de activePath.id —
+        // evita que el progreso de otra profesion se vea por un instante bajo el
+        // mismo id sintetico "ai-custom" mientras llega la respuesta real.
+        const cleaned = Object.fromEntries(
+          Object.entries(prev).filter(([k]) => !k.startsWith(`${activePath.id}-`))
+        );
+        return {
+          ...cleaned,
+          [`${activePath.id}-1`]: !!saved[1],
+          [`${activePath.id}-2`]: !!saved[2],
+          [`${activePath.id}-3`]: !!saved[3],
+        };
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, progressKey, activePath.id]);
 
   const toggleStep = (stepNumber) => {
     const key = `${activePath.id}-${stepNumber}`;
@@ -82,6 +120,16 @@ export default function ReskillingRoadmap({ targetRole, pathIdOverride, customRo
       } catch {
         // confetti is a non-critical visual flourish; ignore failures (e.g. reduced-motion environments)
       }
+    }
+
+    // Persistencia optimista: la UI ya se actualizo arriba, esto solo la guarda
+    // para que sobreviva un recargo de pagina. No bloquea la interaccion.
+    if (userId) {
+      saveRoadmapProgress(userId, progressKey, {
+        1: !!step1,
+        2: !!step2,
+        3: !!step3,
+      });
     }
   };
 

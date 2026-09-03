@@ -7,7 +7,7 @@ import {
 import { SIMULATOR_ROLES } from '../data/futureJobsData';
 import RoleDiagnosisCard from './RoleDiagnosisCard';
 
-export default function RoleSimulator({ onSelectRoleForRoadmap }) {
+export default function RoleSimulator({ onSelectRoleForRoadmap, userId }) {
   const [selectedRoleId, setSelectedRoleId] = useState(SIMULATOR_ROLES[0].id);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -82,7 +82,7 @@ export default function RoleSimulator({ onSelectRoleForRoadmap }) {
         </div>
 
         {/* Diagnosis & Detailed Comparison Card */}
-        <RoleDiagnosisCard role={activeRole} onSelectRoleForRoadmap={onSelectRoleForRoadmap} />
+        <RoleDiagnosisCard role={activeRole} onSelectRoleForRoadmap={onSelectRoleForRoadmap} userId={userId} />
 
       </div>
     </section>

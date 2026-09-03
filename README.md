@@ -31,16 +31,14 @@ Los datos viven en [`src/data/futureJobsData.js`](src/data/futureJobsData.js) (~
 - **Plan de reskilling a medida.** El simulador curado (9 roles fijos) sigue usando las 3 rutas fijas de `RESKILLING_PATHS`. Pero el predictor de IA ya no encaja cualquier profesión en una de esas 3 casillas: [`api/generate-roadmap.js`](api/generate-roadmap.js) genera un plan de 3 fases *específico* al puesto diagnosticado (herramientas, cursos y duración propios de ese sector), y se muestra como una 4ª pestaña morada junto a las curadas.
 - **Defensas de ambos endpoints:** exigen token de sesión válido, validan la respuesta del modelo con Zod, reintentan una vez si el modelo devuelve algo malformado, cachean por `(puesto, país)` y comparten un límite de 10 generaciones de IA diarias por usuario (diagnóstico + roadmap cuentan para el mismo cupo).
 
-### 🔜 Fase 2 — Que la app recuerde al usuario
+### ✅ Fase 2 — Que la app recuerde al usuario (completada)
 
-Hoy la sesión persiste, pero **nada de lo que hace el usuario se guarda**: si recarga la página, pierde su diagnóstico. Esta fase convierte la app de "reporte" en "herramienta personal".
+Antes de esta fase, nada de lo que hacía el usuario se guardaba: recargar la página perdía el diagnóstico. Ahora la app tiene memoria real, con 4 tablas nuevas en [`src/lib/userData.js`](src/lib/userData.js) — **las primeras que sí se leen y escriben directo desde el navegador**, protegidas por políticas de Row Level Security basadas en `auth.uid()` (a diferencia de las 3 anteriores, que solo tocaba el servidor).
 
-- [ ] Guardar el historial de diagnósticos de cada usuario y mostrarlo al volver
-- [ ] Perfil mínimo: puesto actual y país, para no repreguntarlos en cada visita
-- [ ] Marcar pasos completados en el plan de reskilling (progreso persistente)
-- [ ] Exportar el diagnóstico a PDF o enlace compartible
-
-Requiere tablas nuevas **con políticas de Row Level Security**, porque a diferencia de las actuales estas sí se leerían desde el navegador.
+- [x] **Historial de diagnósticos.** Cada consulta al predictor de IA (`AIRolePredictor`) se guarda en `user_diagnosis_history`, junto con su roadmap si llegó a generarse. Aparece como una tira de chips debajo del formulario; un clic reabre el diagnóstico completo al instante, sin volver a llamar al LLM.
+- [x] **Perfil mínimo.** El último puesto y país consultados se guardan en `user_profiles` y prellenan el formulario en la siguiente visita — sin pantalla de "editar perfil" separada, solo se recuerda lo último que escribiste.
+- [x] **Progreso persistente del plan de reskilling.** Las casillas de "Listo/Pendiente" de `ReskillingRoadmap` ahora se guardan en `user_roadmap_progress`, por usuario y por plan. Aplica tanto a las 3 rutas curadas como a cualquier roadmap generado por IA — cada profesión tiene su propia clave de progreso (`buildCustomProgressKey`), para que el progreso de "profesor primaria" no se mezcle con el de "chofer de plataformas".
+- [x] **Enlace compartible.** El botón "Compartir" en `RoleDiagnosisCard` copia un enlace público (`/share/:id`) a `shared_diagnoses`, legible sin sesión. Deliberadamente incluye solo el diagnóstico, no el roadmap generado — mantiene la fila autocontenida y simple. Requirió un rewrite de SPA en `vercel.json` para que Vercel sirva `index.html` en esa ruta.
 
 ### 🔜 Fase 3 — Abrir la app al público
 
@@ -62,9 +60,11 @@ Anotadas para no perderlas, no priorizadas: comparar tu rol contra el promedio d
 | Qué | Estado |
 |---|---|
 | Tablas `role_predictions`, `usage_daily` y `reskilling_roadmaps` | ✅ Creadas, con RLS activado y sin políticas (solo el service role entra) |
+| Tablas `user_profiles`, `user_diagnosis_history`, `user_roadmap_progress` y `shared_diagnoses` | ✅ Creadas, con RLS y políticas reales basadas en `auth.uid()` (Fase 2) |
 | Cabeceras de seguridad | ✅ [`vercel.json`](vercel.json) con CSP, HSTS, `X-Frame-Options`, `Referrer-Policy` y `Permissions-Policy` |
+| Rewrite de SPA | ✅ `vercel.json` sirve `index.html` en cualquier ruta no-`/api/*` — necesario para que `/share/:id` cargue al abrirlo directo |
 | Error boundary de React | ✅ [`ErrorBoundary`](src/components/ErrorBoundary.jsx) envuelve la app en `main.jsx` |
-| Tests | ✅ Vitest, 26 tests sobre la lógica pura |
+| Tests | ✅ Vitest, 31 tests sobre la lógica pura |
 | Roadmap de reskilling genérico para profesiones fuera de las 9 curadas | ✅ Ahora se genera a medida, ver [`api/generate-roadmap.js`](api/generate-roadmap.js) |
 | **SMTP de producción** | ⏳ **Pendiente y bloqueante para la Fase 3** — requiere un dominio propio verificado en Resend |
 
@@ -83,6 +83,15 @@ El roadmap generado se agrega como una **4ª pestaña morada**, sin reemplazar l
 
 **El límite diario (10) se comparte entre diagnóstico y roadmap** — generar ambos para una misma profesión gasta 2 de esas 10 acciones. Es una decisión deliberada de simplicidad (un solo contador, una sola tabla `usage_daily`) y no un límite por feature.
 
+### Sobre la persistencia de usuario (Fase 2)
+
+Cuatro decisiones de diseño que vale la pena tener presentes al tocar [`src/lib/userData.js`](src/lib/userData.js):
+
+- **Lectura directa desde el navegador, no vía endpoint.** A diferencia de `predict-role.js`/`generate-roadmap.js` (que existen porque necesitan una clave secreta de OpenRouter), el historial/perfil/progreso/compartir son operaciones simples de base de datos — el patrón idiomático de Supabase es dejar que `supabase-js` las haga directo, protegidas por RLS. No hay funciones serverless nuevas para esto.
+- **`current_job_title`, no `current_role`.** `current_role` es palabra reservada en Postgres (`CURRENT_ROLE`, una variable de sesión SQL) — la migración falla con `syntax error` si se usa como nombre de columna.
+- **La clave de progreso del roadmap de IA no es solo el id de la pestaña.** `ReskillingRoadmap` usa el id sintético `"ai-custom"` para *cualquier* profesión generada por IA — si se guardara el progreso bajo ese id tal cual, dos profesiones distintas (p. ej. "profesor primaria" y "chofer de plataformas") pisarían el mismo progreso. `buildCustomProgressKey(jobTitle, country)` arma una clave estable por profesión (`custom:profesor primaria:mexico`) para evitarlo.
+- **El enlace compartido no incluye el roadmap generado, solo el diagnóstico.** Menos superficie, fila autocontenida, y es exactamente lo que pide el checklist original ("exportar el diagnóstico"). Si en el futuro se quiere compartir el roadmap también, es una columna nueva en `shared_diagnoses`, no un rediseño.
+
 ### Qué cubren los tests
 
 ```bash
@@ -97,6 +106,7 @@ Cubren la lógica pura, que es donde un fallo silencioso hace más daño:
 - **`normalizeTitle`** — si falla, `"Contador"` y `"contador "` se cachean por separado y la caché deja de ahorrar dinero.
 - **`rolePredictionSchema`** — la validación que impide que una respuesta malformada del LLM llegue a la interfaz.
 - **`reskillingRoadmapSchema`** — exige exactamente 3 fases numeradas 1, 2 y 3 sin repetir; si el modelo las numera mal, dos fases colisionarían en la misma clave de la UI y una desaparecería del render sin aviso.
+- **`buildCustomProgressKey`** (Fase 2) — confirma que dos profesiones distintas nunca comparten clave de progreso bajo el id sintético `"ai-custom"`.
 
 No hay tests de componentes React todavía: para una app tan visual, la regresión visual daría más señal que afirmar sobre el marcado.
 
