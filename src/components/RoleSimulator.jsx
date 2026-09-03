@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   Compass,
   Search,
-  User
+  User,
+  Wand2
 } from 'lucide-react';
 import { SIMULATOR_ROLES } from '../data/futureJobsData';
 import RoleDiagnosisCard from './RoleDiagnosisCard';
@@ -13,10 +14,18 @@ export default function RoleSimulator({ onSelectRoleForRoadmap, userId }) {
 
   const activeRole = SIMULATOR_ROLES.find(r => r.id === selectedRoleId) || SIMULATOR_ROLES[0];
 
-  const filteredRoles = SIMULATOR_ROLES.filter(r =>
-    r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.summary.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Coincide por palabra, no por frase completa: "maestro primaria" encuentra
+  // "Docente / Profesor de Escuela..." aunque ninguna de esas dos palabras
+  // exactas aparezca junta en el titulo o resumen. Solo hay 9 roles fijos aqui
+  // (SIMULATOR_ROLES) — si ninguno encaja, el hueco de abajo invita a probar
+  // el predictor de IA de texto libre, que si genera cualquier profesion.
+  const searchWords = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const filteredRoles = searchWords.length === 0
+    ? SIMULATOR_ROLES
+    : SIMULATOR_ROLES.filter((r) => {
+        const haystack = `${r.title} ${r.summary}`.toLowerCase();
+        return searchWords.every((word) => haystack.includes(word));
+      });
 
   return (
     <section id="simulator" className="py-8 sm:py-10 border-t border-slate-800/80 bg-gradient-to-b from-transparent via-dark-950/40 to-transparent">
@@ -58,27 +67,43 @@ export default function RoleSimulator({ onSelectRoleForRoadmap, userId }) {
           </div>
 
           {/* Role Pill Buttons */}
-          <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1 scrollbar-thin">
-            {filteredRoles.map((role) => {
-              const isSelected = role.id === activeRole.id;
-              return (
-                <button
-                  key={role.id}
-                  onClick={() => setSelectedRoleId(role.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md shadow-cyan-500/20 scale-105'
-                      : 'bg-dark-900/90 text-slate-300 hover:text-white hover:bg-dark-800 border border-slate-800'
-                  }`}
-                >
-                  <span>{role.title}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-black/20 text-black font-bold' : 'bg-dark-800 text-slate-400'}`}>
-                    {role.automationScore}%
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {filteredRoles.length > 0 ? (
+            <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1 scrollbar-thin">
+              {filteredRoles.map((role) => {
+                const isSelected = role.id === activeRole.id;
+                return (
+                  <button
+                    key={role.id}
+                    onClick={() => setSelectedRoleId(role.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md shadow-cyan-500/20 scale-105'
+                        : 'bg-dark-900/90 text-slate-300 hover:text-white hover:bg-dark-800 border border-slate-800'
+                    }`}
+                  >
+                    <span>{role.title}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-black/20 text-black font-bold' : 'bg-dark-800 text-slate-400'}`}>
+                      {role.automationScore}%
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            // Solo hay 9 roles fijos en este simulador. Si ninguno coincide con la
+            // busqueda, el diagnostico sigue mostrando el ultimo rol seleccionado
+            // (no se borra solo) — esto explica por que y ofrece la salida real.
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-xs text-purple-200">
+              <Wand2 className="w-4 h-4 text-purple-300 shrink-0 mt-0.5" />
+              <span>
+                Ninguno de los 9 roles predefinidos coincide con "{searchQuery}". Prueba el{' '}
+                <a href="#ai-predictor" className="underline font-semibold hover:text-white">
+                  predictor con IA
+                </a>{' '}
+                más abajo — genera un diagnóstico para cualquier profesión que escribas.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Diagnosis & Detailed Comparison Card */}
