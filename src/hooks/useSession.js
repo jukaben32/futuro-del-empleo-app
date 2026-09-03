@@ -17,6 +17,14 @@ function getAuthParamsFromUrl() {
   };
 }
 
+// Exportado para que App.jsx decida, en el primer render, si el visitante vuelve
+// de un enlace magico (saltar la landing page e ir directo al login/carga) o es
+// una visita nueva (mostrar la landing primero).
+export function hasAuthCallbackParams() {
+  const { code, error, hasHashSession } = getAuthParamsFromUrl();
+  return Boolean(code || error || hasHashSession);
+}
+
 function cleanAuthParamsFromUrl() {
   const url = new URL(window.location.href);
   const paramsToRemove = [

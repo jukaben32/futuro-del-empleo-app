@@ -40,13 +40,13 @@ Antes de esta fase, nada de lo que hacía el usuario se guardaba: recargar la p�
 - [x] **Progreso persistente del plan de reskilling.** Las casillas de "Listo/Pendiente" de `ReskillingRoadmap` ahora se guardan en `user_roadmap_progress`, por usuario y por plan. Aplica tanto a las 3 rutas curadas como a cualquier roadmap generado por IA — cada profesión tiene su propia clave de progreso (`buildCustomProgressKey`), para que el progreso de "profesor primaria" no se mezcle con el de "chofer de plataformas".
 - [x] **Enlace compartible.** El botón "Compartir" en `RoleDiagnosisCard` copia un enlace público (`/share/:id`) a `shared_diagnoses`, legible sin sesión. Deliberadamente incluye solo el diagnóstico, no el roadmap generado — mantiene la fila autocontenida y simple. Requirió un rewrite de SPA en `vercel.json` para que Vercel sirva `index.html` en esa ruta.
 
-### 🔜 Fase 3 — Abrir la app al público
+### 🔜 Fase 3 — Abrir la app al público (en progreso)
 
 Ahora mismo la app **solo puede recibir a miembros del proyecto de Supabase** (ver *Envío de correos*). Antes de compartirla con cualquiera:
 
-- [ ] **Dominio propio verificado en Resend** — bloqueante, sin esto no llegan los correos
-- [ ] Página de aterrizaje pública, antes del login, que explique qué es la app
-- [ ] Analítica para saber qué secciones se usan de verdad
+- [ ] **Dominio propio verificado en Resend** — bloqueante, sin esto no llegan los correos a nadie fuera del proyecto
+- [x] **Página de aterrizaje pública**, antes del login, que explique qué es la app — [`LandingPage.jsx`](src/components/LandingPage.jsx). Hero, 4 cifras reales del WEF (no marketing inventado) y 6 tarjetas de features, cada una con su propio CTA hacia el login.
+- [x] **Analítica** — [Vercel Web Analytics](https://vercel.com/docs/analytics) vía `<Analytics />` en `main.jsx`. Sin cookies, sin configuración adicional; su script y sus eventos van a `/_vercel/insights/*` (mismo origen), así que la CSP existente (`'self'`) ya lo cubre sin tocar `vercel.json`.
 - [x] Cabeceras de seguridad — hecho en [`vercel.json`](vercel.json)
 
 ### 💡 Fase 4 — Ideas sin comprometer
@@ -91,6 +91,10 @@ Cuatro decisiones de diseño que vale la pena tener presentes al tocar [`src/lib
 - **`current_job_title`, no `current_role`.** `current_role` es palabra reservada en Postgres (`CURRENT_ROLE`, una variable de sesión SQL) — la migración falla con `syntax error` si se usa como nombre de columna.
 - **La clave de progreso del roadmap de IA no es solo el id de la pestaña.** `ReskillingRoadmap` usa el id sintético `"ai-custom"` para *cualquier* profesión generada por IA — si se guardara el progreso bajo ese id tal cual, dos profesiones distintas (p. ej. "profesor primaria" y "chofer de plataformas") pisarían el mismo progreso. `buildCustomProgressKey(jobTitle, country)` arma una clave estable por profesión (`custom:profesor primaria:mexico`) para evitarlo.
 - **El enlace compartido no incluye el roadmap generado, solo el diagnóstico.** Menos superficie, fila autocontenida, y es exactamente lo que pide el checklist original ("exportar el diagnóstico"). Si en el futuro se quiere compartir el roadmap también, es una columna nueva en `shared_diagnoses`, no un rediseño.
+
+### Sobre la landing page (Fase 3)
+
+`App.jsx` decide entre landing y login con una sola regla: si la URL trae parámetros de un enlace mágico (`?code=...` o `#access_token=...`), el visitante ya está a mitad de un login — se salta la landing y va directo a `LoginScreen`/pantalla de carga. Cualquier otra visita nueva ve `LandingPage` primero. Esa detección vive en `hasAuthCallbackParams()` (`src/hooks/useSession.js`), reutilizando el mismo parseo de URL que ya usa el flujo de login, en vez de duplicarlo.
 
 ### Qué cubren los tests
 
@@ -189,5 +193,6 @@ Los logs de autenticación (**Logs → Auth**) dicen exactamente qué pasó. Dos
 - React 19 + Vite + Tailwind CSS
 - Supabase (autenticación por magic link)
 - OpenRouter (`google/gemini-2.5-flash-lite`) para el predictor de empleo con IA
+- Vercel Web Analytics
 - Vitest para los tests
 - Desplegado en Vercel

@@ -11,11 +11,17 @@ import ReskillingRoadmap from './components/ReskillingRoadmap';
 import RoiCalculator from './components/RoiCalculator';
 import Footer from './components/Footer';
 import LoginScreen from './components/LoginScreen';
+import LandingPage from './components/LandingPage';
 import SharedDiagnosisView from './components/SharedDiagnosisView';
-import { useSession } from './hooks/useSession';
+import { useSession, hasAuthCallbackParams } from './hooks/useSession';
 
 export default function App() {
   const { session, loading, authError } = useSession();
+
+  // Si la URL trae parametros de un enlace magico (?code=... o #access_token=...),
+  // el visitante ya esta a mitad de un login — saltamos la landing e igual mostramos
+  // LoginScreen/carga directamente. Solo una visita nueva ve la landing primero.
+  const [showLanding, setShowLanding] = useState(() => !hasAuthCallbackParams());
 
   const [selectedSector, setSelectedSector] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('global');
@@ -65,6 +71,9 @@ export default function App() {
   }
 
   if (!session) {
+    if (showLanding) {
+      return <LandingPage onContinue={() => setShowLanding(false)} />;
+    }
     return <LoginScreen authError={authError} />;
   }
 
