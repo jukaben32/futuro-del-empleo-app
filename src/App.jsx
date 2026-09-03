@@ -14,7 +14,7 @@ import LoginScreen from './components/LoginScreen';
 import { useSession } from './hooks/useSession';
 
 export default function App() {
-  const { session, loading } = useSession();
+  const { session, loading, authError } = useSession();
 
   const [selectedSector, setSelectedSector] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('global');
@@ -48,7 +48,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <LoginScreen />;
+    return <LoginScreen authError={authError} />;
   }
 
   return (

@@ -8,12 +8,12 @@ const DAILY_LIMIT = 10;
 // picked specifically for this high-volume, low-cost, structured-JSON-generation workload.
 const MODEL = 'google/gemini-2.5-flash-lite';
 
-const VALID_COUNTRIES = ['argentina', 'brasil', 'colombia', 'mexico', 'latam', 'global'];
+export const VALID_COUNTRIES = ['argentina', 'brasil', 'colombia', 'mexico', 'latam', 'global'];
 const VALID_SECTORS = ['tech', 'finance', 'health', 'education', 'industry', 'retail'];
 const VALID_RISK_LEVELS = ['Bajo', 'Medio', 'Alto', 'Crítico'];
 const VALID_PATH_IDS = ['path-data-analyst', 'path-ai-specialist', 'path-operations-ai'];
 
-const rolePredictionSchema = z.object({
+export const rolePredictionSchema = z.object({
   title: z.string().min(2).max(120),
   sector: z.enum(VALID_SECTORS),
   automationScore: z.number().int().min(0).max(100),
@@ -30,7 +30,7 @@ function getSupabaseAdmin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-function normalizeTitle(jobTitle) {
+export function normalizeTitle(jobTitle) {
   return jobTitle.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 

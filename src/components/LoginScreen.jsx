@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Sparkles, Mail, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { getFriendlyAuthError } from '../lib/authErrors';
 
-export default function LoginScreen() {
+export default function LoginScreen({ authError = '' }) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
   const [errorMessage, setErrorMessage] = useState('');
@@ -15,14 +16,15 @@ export default function LoginScreen() {
     setStatus('sending');
     setErrorMessage('');
 
+    const redirectUrl = `${window.location.origin}/`;
     const { error } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
-      options: { emailRedirectTo: window.location.origin }
+      options: { emailRedirectTo: redirectUrl }
     });
 
     if (error) {
       setStatus('error');
-      setErrorMessage(error.message);
+      setErrorMessage(getFriendlyAuthError(error.message));
     } else {
       setStatus('sent');
     }
@@ -96,10 +98,10 @@ export default function LoginScreen() {
                 />
               </div>
 
-              {status === 'error' && (
+              {(status === 'error' || authError) && (
                 <div className="flex items-start gap-2 mb-4 p-3 rounded-xl bg-rose-950/20 border border-rose-500/30 text-xs text-rose-300">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <span>{errorMessage || 'No pudimos enviar el enlace. Intenta de nuevo.'}</span>
+                  <span>{errorMessage || authError || 'No pudimos enviar el enlace. Intenta de nuevo.'}</span>
                 </div>
               )}
 
