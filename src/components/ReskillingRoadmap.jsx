@@ -28,15 +28,19 @@ const TARGET_ROLE_TO_PATH_ID = {
   'Diseñador Pedagógico de Aprendizaje Aumentado': 'path-operations-ai', // advice: AI tools for personalization
 };
 
-export default function ReskillingRoadmap({ targetRole }) {
+export default function ReskillingRoadmap({ targetRole, pathIdOverride }) {
   const [selectedPathId, setSelectedPathId] = useState(RESKILLING_PATHS[0].id);
   const [completedSteps, setCompletedSteps] = useState({}); // { pathId-stepIndex: boolean }
 
-  // Adjust selection during render when a new target role arrives from RoleSimulator
+  // Adjust selection during render when a new target role arrives from RoleSimulator or
+  // the AI predictor. pathIdOverride (from the AI predictor, a literal path id chosen by
+  // the model) takes priority over the free-text TARGET_ROLE_TO_PATH_ID dictionary lookup.
   const [lastTargetRole, setLastTargetRole] = useState(targetRole);
-  if (targetRole !== lastTargetRole) {
+  const [lastPathIdOverride, setLastPathIdOverride] = useState(pathIdOverride);
+  if (targetRole !== lastTargetRole || pathIdOverride !== lastPathIdOverride) {
     setLastTargetRole(targetRole);
-    const mappedId = targetRole && TARGET_ROLE_TO_PATH_ID[targetRole];
+    setLastPathIdOverride(pathIdOverride);
+    const mappedId = pathIdOverride || (targetRole && TARGET_ROLE_TO_PATH_ID[targetRole]);
     if (mappedId) setSelectedPathId(mappedId);
   }
 

@@ -5,19 +5,25 @@ import HeroStats from './components/HeroStats';
 import JobsComparison from './components/JobsComparison';
 import FutureSkills from './components/FutureSkills';
 import RoleSimulator from './components/RoleSimulator';
+import AIRolePredictor from './components/AIRolePredictor';
 import HeadToHeadComparator from './components/HeadToHeadComparator';
 import ReskillingRoadmap from './components/ReskillingRoadmap';
 import RoiCalculator from './components/RoiCalculator';
 import Footer from './components/Footer';
+import LoginScreen from './components/LoginScreen';
+import { useSession } from './hooks/useSession';
 
 export default function App() {
+  const { session, loading } = useSession();
+
   const [selectedSector, setSelectedSector] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('global');
-  
+
   // Cross-component state bridges
   const [comparatorJobA, setComparatorJobA] = useState(null);
   const [comparatorJobB, setComparatorJobB] = useState(null);
   const [roadmapPathTarget, setRoadmapPathTarget] = useState(null);
+  const [roadmapPathIdOverride, setRoadmapPathIdOverride] = useState(null);
 
   const handleSelectJobForComparison = (job) => {
     if (!comparatorJobA) {
@@ -30,11 +36,20 @@ export default function App() {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleRoleTransitionToRoadmap = (targetRole) => {
+  const handleRoleTransitionToRoadmap = (targetRole, pathIdOverride = null) => {
     setRoadmapPathTarget(targetRole);
+    setRoadmapPathIdOverride(pathIdOverride);
     const el = document.getElementById('reskilling');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
+
+  if (loading) {
+    return <div className="min-h-screen bg-[#07090e]" />;
+  }
+
+  if (!session) {
+    return <LoginScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-[#07090e] bg-grid-pattern text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-black">
@@ -48,7 +63,7 @@ export default function App() {
 
       <div className="relative z-10 flex flex-col flex-1">
         {/* Header & Voice Summary */}
-        <Header />
+        <Header userEmail={session.user.email} />
 
         {/* Global Filter Bar */}
         <FilterBar 
@@ -77,7 +92,12 @@ export default function App() {
           <FutureSkills />
 
           {/* 4. Personalized Role Simulator */}
-          <RoleSimulator 
+          <RoleSimulator
+            onSelectRoleForRoadmap={handleRoleTransitionToRoadmap}
+          />
+
+          {/* 4b. AI-Powered Free-Text Role Predictor */}
+          <AIRolePredictor
             onSelectRoleForRoadmap={handleRoleTransitionToRoadmap}
           />
 
@@ -90,6 +110,7 @@ export default function App() {
           {/* 6. Reskilling Action Plan & Roadmap */}
           <ReskillingRoadmap
             targetRole={roadmapPathTarget}
+            pathIdOverride={roadmapPathIdOverride}
           />
 
           {/* 7. ROI Learning & Salary Growth Calculator */}

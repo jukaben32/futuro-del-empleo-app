@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.114.0",
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^1.39.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
