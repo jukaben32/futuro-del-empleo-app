@@ -1,8 +1,15 @@
 import { z } from 'zod';
 import { RESKILLING_PATHS } from '../src/data/futureJobsData.js';
-import { DAILY_LIMIT, getSupabaseAdmin, normalizeTitle, VALID_COUNTRIES, OPENROUTER_TIMEOUT_MS } from './predict-role.js';
+import { DAILY_LIMIT, getSupabaseAdmin, normalizeTitle, VALID_COUNTRIES } from './predict-role.js';
 
 const MODEL = 'google/gemini-2.5-flash-lite';
+// Mas generoso que el de predict-role.js (25s): esta llamada le pide al modelo
+// una estructura anidada (3 fases, cada una con su propio array de topics/tools)
+// bastante mas pesada que un diagnostico simple. Dos intentos reales se agotaron
+// a los 25s en ambos, asi que ahora es UN solo intento con mas margen — reintentar
+// la misma tarea sobrecargada con el mismo timeout corto no arreglaba nada, solo
+// duplicaba la espera del usuario.
+const ROADMAP_TIMEOUT_MS = 45000;
 
 export const reskillingRoadmapSchema = z
   .object({
@@ -37,22 +44,21 @@ export const reskillingRoadmapSchema = z
   );
 
 function buildRoadmapSystemPrompt(diagnosis, countryLabel) {
-  const example1 = RESKILLING_PATHS.find((p) => p.id === 'path-data-analyst');
-  const example2 = RESKILLING_PATHS.find((p) => p.id === 'path-operations-ai');
+  // Un solo ejemplo, descrito en prosa en vez de volcar el JSON completo de
+  // topics/tools/keySoftSkills: el prompt original (2 ejemplos + JSON embebido)
+  // era mucho mas pesado que el de predict-role.js, y las 2 llamadas reales que
+  // se colgaron agotaron los 25s del timeout en ambos intentos — no fue un
+  // problema de formato, el modelo simplemente necesitaba mas tiempo/tokens de
+  // los que un prompt tan largo dejaba de margen.
+  const example = RESKILLING_PATHS.find((p) => p.id === 'path-operations-ai');
 
-  return `Eres un diseñador de planes de reskilling profesional basado en el World Economic Forum Future of Jobs Report 2025-2030. Dado el diagnóstico de un puesto de trabajo ya generado, crea un plan de transición de 3 fases hacia el rol futuro sugerido, con el mismo rigor y formato que estos ejemplos de referencia:
+  return `Eres un diseñador de planes de reskilling profesional basado en el World Economic Forum Future of Jobs Report 2025-2030. Dado el diagnóstico de un puesto de trabajo ya generado, crea un plan de transición de 3 fases hacia el rol futuro sugerido.
 
-EJEMPLO 1 (${example1.fromTitle} → ${example1.toTitle}):
-- overview: "${example1.overview}"
-- estimatedMonths: "${example1.estimatedMonths}", salaryIncrease: "${example1.salaryIncrease}"
-- Fase 1 "${example1.phases[0].title}" (${example1.phases[0].duration}): topics ${JSON.stringify(example1.phases[0].topics)}, tools ${JSON.stringify(example1.phases[0].tools)}, recommendedCourse: "${example1.phases[0].recommendedCourse}"
-- keySoftSkills: ${JSON.stringify(example1.keySoftSkills)}
-
-EJEMPLO 2 (${example2.fromTitle} → ${example2.toTitle}):
-- overview: "${example2.overview}"
-- estimatedMonths: "${example2.estimatedMonths}", salaryIncrease: "${example2.salaryIncrease}"
-- Fase 1 "${example2.phases[0].title}" (${example2.phases[0].duration}): topics ${JSON.stringify(example2.phases[0].topics)}, tools ${JSON.stringify(example2.phases[0].tools)}, recommendedCourse: "${example2.phases[0].recommendedCourse}"
-- keySoftSkills: ${JSON.stringify(example2.keySoftSkills)}
+EJEMPLO DE FORMATO Y NIVEL DE DETALLE (${example.fromTitle} → ${example.toTitle}):
+- overview: "${example.overview}"
+- estimatedMonths: "${example.estimatedMonths}", salaryIncrease: "${example.salaryIncrease}"
+- Fase 1 "${example.phases[0].title}" (${example.phases[0].duration}): 3 topics concretos, 2-3 tools reales, recommendedCourse con plataforma real.
+- keySoftSkills: 3 habilidades blandas concretas, no genéricas.
 
 DIAGNÓSTICO A TRANSFORMAR EN PLAN:
 - Puesto actual: "${diagnosis.title}" (sector: ${diagnosis.sector}, riesgo: ${diagnosis.riskLevel}, automationScore: ${diagnosis.automationScore})
@@ -138,7 +144,7 @@ async function callOpenRouterForRoadmap(diagnosis, country) {
     // (varios minutos) sin dar ninguna senal — el boton se ve "pensando" para
     // siempre. Esto es exactamente lo que le paso a un usuario real: la llamada
     // a OpenRouter se colgo y Vercel mato la funcion recien a los 300s.
-    signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
+    signal: AbortSignal.timeout(ROADMAP_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -154,19 +160,22 @@ async function callOpenRouterForRoadmap(diagnosis, country) {
   return JSON.parse(toolCall.function.arguments);
 }
 
+// Un solo intento, no dos: las dos llamadas reales que fallaron se agotaron por
+// timeout en AMBOS intentos con el mismo prompt — reintentar una tarea que ya
+// sabemos que es pesada, con el mismo margen de tiempo, solo duplica la espera
+// sin cambiar el resultado. Con el prompt recortado y mas tiempo (45s) un solo
+// intento tiene mejor chance real que dos intentos apurados.
 async function generateValidatedRoadmap(diagnosis, country) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const rawInput = await callOpenRouterForRoadmap(diagnosis, country);
-      const parsed = reskillingRoadmapSchema.safeParse(rawInput);
-      if (parsed.success) return parsed.data;
-      // Sin este log no hay forma de saber DESPUES por que fallo: si el modelo
-      // devolvio algo que no encaja en el schema (y en que campo), o si simplemente
-      // no llamo a la herramienta. issues trae el detalle exacto de Zod.
-      console.error(`generateValidatedRoadmap intento ${attempt + 1}: respuesta invalida`, JSON.stringify(parsed.error.issues));
-    } catch (err) {
-      console.error(`generateValidatedRoadmap intento ${attempt + 1} fallo:`, err.name, err.message);
-    }
+  try {
+    const rawInput = await callOpenRouterForRoadmap(diagnosis, country);
+    const parsed = reskillingRoadmapSchema.safeParse(rawInput);
+    if (parsed.success) return parsed.data;
+    // Sin este log no hay forma de saber DESPUES por que fallo: si el modelo
+    // devolvio algo que no encaja en el schema (y en que campo), o si simplemente
+    // no llamo a la herramienta. issues trae el detalle exacto de Zod.
+    console.error('generateValidatedRoadmap: respuesta invalida', JSON.stringify(parsed.error.issues));
+  } catch (err) {
+    console.error('generateValidatedRoadmap fallo:', err.name, err.message);
   }
   return null;
 }
