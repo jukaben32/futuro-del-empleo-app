@@ -11,7 +11,6 @@ const MODEL = 'google/gemini-2.5-flash-lite';
 export const VALID_COUNTRIES = ['argentina', 'brasil', 'colombia', 'mexico', 'latam', 'global'];
 const VALID_SECTORS = ['tech', 'finance', 'health', 'education', 'industry', 'retail'];
 const VALID_RISK_LEVELS = ['Bajo', 'Medio', 'Alto', 'Crítico'];
-const VALID_PATH_IDS = ['path-data-analyst', 'path-ai-specialist', 'path-operations-ai'];
 
 export const rolePredictionSchema = z.object({
   title: z.string().min(2).max(120),
@@ -23,7 +22,6 @@ export const rolePredictionSchema = z.object({
   humanWillDo: z.array(z.string().min(3)).min(3).max(4),
   survivalAdvice: z.string().min(10).max(400),
   targetTransitionRole: z.string().min(3).max(120),
-  suggestedPathId: z.enum(VALID_PATH_IDS).nullable(),
 });
 
 export function getSupabaseAdmin() {
@@ -58,10 +56,7 @@ Instrucciones:
 - Genera exactamente 3 o 4 elementos en "aiWillDo" y en "humanWillDo", tareas concretas y específicas al rol (no genéricas).
 - "sector" debe ser uno de: ${VALID_SECTORS.join(', ')}.
 - "riskLevel" debe ser uno de: ${VALID_RISK_LEVELS.join(', ')}, coherente con "automationScore" (Bajo <40, Medio 40-69, Alto/Crítico >=70).
-- "suggestedPathId" debe ser la ruta de reskilling más cercana entre estas 3 (o null si ninguna aplica):
-  - "path-data-analyst": transición hacia análisis de datos y Business Intelligence (SQL, Power BI, Tableau).
-  - "path-ai-specialist": transición hacia construcción/orquestación de sistemas de IA (LLMs, agentes autónomos, RAG).
-  - "path-operations-ai": transición hacia integración de IA en procesos de negocio sin programar (automatización no-code, adopción de IA en flujos de trabajo).
+- "targetTransitionRole" debe ser un rol futuro concreto y específico a este puesto (no un rol genérico de otro sector) — el plan de reskilling hacia ese rol se genera después, en una llamada separada.
 - Si se provee un país o región en el mensaje del usuario, ajusta el análisis con matices reales del reporte WEF para ese contexto (marco regulatorio local, informalidad laboral, nivel de adopción tecnológica, brechas de habilidades reportadas para esa región) en vez de dar una respuesta genérica global. Si no se provee país, da una respuesta neutral/global.
 - Responde siempre en español.
 - Usa la herramienta "emit_role_prediction" para entregar tu respuesta. No respondas con texto libre.`;
@@ -85,9 +80,8 @@ const EMIT_TOOL = {
         humanWillDo: { type: 'array', items: { type: 'string' }, minItems: 3, maxItems: 4 },
         survivalAdvice: { type: 'string', description: 'Consejo táctico de transición profesional, 1-2 frases.' },
         targetTransitionRole: { type: 'string', description: 'Nombre del rol futuro hacia el que debería evolucionar.' },
-        suggestedPathId: { type: ['string', 'null'], enum: [...VALID_PATH_IDS, null] },
       },
-      required: ['title', 'sector', 'automationScore', 'riskLevel', 'summary', 'aiWillDo', 'humanWillDo', 'survivalAdvice', 'targetTransitionRole', 'suggestedPathId'],
+      required: ['title', 'sector', 'automationScore', 'riskLevel', 'summary', 'aiWillDo', 'humanWillDo', 'survivalAdvice', 'targetTransitionRole'],
     },
   },
 };

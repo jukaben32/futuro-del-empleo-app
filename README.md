@@ -64,7 +64,7 @@ Anotadas para no perderlas, no priorizadas: comparar tu rol contra el promedio d
 | Tablas `role_predictions`, `usage_daily` y `reskilling_roadmaps` | ✅ Creadas, con RLS activado y sin políticas (solo el service role entra) |
 | Cabeceras de seguridad | ✅ [`vercel.json`](vercel.json) con CSP, HSTS, `X-Frame-Options`, `Referrer-Policy` y `Permissions-Policy` |
 | Error boundary de React | ✅ [`ErrorBoundary`](src/components/ErrorBoundary.jsx) envuelve la app en `main.jsx` |
-| Tests | ✅ Vitest, 28 tests sobre la lógica pura |
+| Tests | ✅ Vitest, 26 tests sobre la lógica pura |
 | Roadmap de reskilling genérico para profesiones fuera de las 9 curadas | ✅ Ahora se genera a medida, ver [`api/generate-roadmap.js`](api/generate-roadmap.js) |
 | **SMTP de producción** | ⏳ **Pendiente y bloqueante para la Fase 3** — requiere un dominio propio verificado en Resend |
 

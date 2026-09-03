@@ -31,17 +31,11 @@ const prediccionValida = {
   humanWillDo: ['Interpretar resultados', 'Asesorar al cliente', 'Decidir estrategia fiscal'],
   survivalAdvice: 'Muevete hacia analisis financiero y asesoria estrategica.',
   targetTransitionRole: 'Analista Financiero',
-  suggestedPathId: 'path-data-analyst',
 };
 
 describe('rolePredictionSchema', () => {
   test('acepta un diagnostico bien formado', () => {
     expect(rolePredictionSchema.safeParse(prediccionValida).success).toBe(true);
-  });
-
-  test('acepta suggestedPathId nulo cuando ninguna ruta aplica', () => {
-    const sinRuta = { ...prediccionValida, suggestedPathId: null };
-    expect(rolePredictionSchema.safeParse(sinRuta).success).toBe(true);
   });
 
   test('rechaza un sector que no esta en la lista permitida', () => {
@@ -66,11 +60,6 @@ describe('rolePredictionSchema', () => {
   test('rechaza mas de 4 elementos en humanWillDo', () => {
     const demasiados = { ...prediccionValida, humanWillDo: ['a1', 'b2', 'c3', 'd4', 'e5'] };
     expect(rolePredictionSchema.safeParse(demasiados).success).toBe(false);
-  });
-
-  test('rechaza una ruta de reskilling inventada por el modelo', () => {
-    const rutaFalsa = { ...prediccionValida, suggestedPathId: 'path-inventada' };
-    expect(rolePredictionSchema.safeParse(rutaFalsa).success).toBe(false);
   });
 
   test('rechaza un diagnostico al que le falta un campo obligatorio', () => {

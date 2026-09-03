@@ -130,7 +130,7 @@ export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap, isGene
         {onSelectRoleForRoadmap && (
           <div className="shrink-0 flex flex-col items-end gap-1.5">
             <button
-              onClick={() => onSelectRoleForRoadmap(role.targetTransitionRole, role.suggestedPathId ?? null)}
+              onClick={() => onSelectRoleForRoadmap(role.targetTransitionRole)}
               disabled={isGeneratingRoadmap}
               className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-wait text-black text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-cyan-500/20"
             >
