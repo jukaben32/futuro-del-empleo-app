@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, User, Sparkles, ArrowRight, CheckCircle2, Share2, Check } from 'lucide-react';
+import { Bot, User, Sparkles, ArrowRight, CheckCircle2, Share2, Check, AlertTriangle } from 'lucide-react';
 import { getScoreColor } from '../lib/scoreColor';
 import { createSharedDiagnosis } from '../lib/userData';
 
@@ -178,21 +178,26 @@ export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap, isGene
         </div>
 
         {onSelectRoleForRoadmap && (
-          <div className="shrink-0 flex flex-col items-end gap-1.5">
-            <button
-              onClick={() => onSelectRoleForRoadmap(role.targetTransitionRole)}
-              disabled={isGeneratingRoadmap}
-              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-wait text-black text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-cyan-500/20"
-            >
-              <span>{isGeneratingRoadmap ? 'Generando plan personalizado...' : 'Ver Plan de Reskilling'}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            {roadmapError && (
-              <span className="text-[11px] text-rose-400 max-w-xs text-right">{roadmapError}</span>
-            )}
-          </div>
+          <button
+            onClick={() => onSelectRoleForRoadmap(role.targetTransitionRole)}
+            disabled={isGeneratingRoadmap}
+            className="shrink-0 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-wait text-black text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-cyan-500/20"
+          >
+            <span>{isGeneratingRoadmap ? 'Generando plan personalizado...' : 'Ver Plan de Reskilling'}</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
+
+      {/* Este error va a todo el ancho de la tarjeta, justo debajo del boton que lo
+          provoco — nunca en la seccion de Reskilling de mas abajo, porque cuando
+          esto ocurre el roadmap nunca llego a generarse y esa seccion no cambia. */}
+      {roadmapError && (
+        <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-rose-950/20 border border-rose-500/30 text-xs text-rose-300">
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          <span>{roadmapError}</span>
+        </div>
+      )}
 
     </div>
   );

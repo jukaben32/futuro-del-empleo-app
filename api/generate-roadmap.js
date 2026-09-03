@@ -152,8 +152,12 @@ async function generateValidatedRoadmap(diagnosis, country) {
       const rawInput = await callOpenRouterForRoadmap(diagnosis, country);
       const parsed = reskillingRoadmapSchema.safeParse(rawInput);
       if (parsed.success) return parsed.data;
-    } catch {
-      // fall through to retry
+      // Sin este log no hay forma de saber DESPUES por que fallo: si el modelo
+      // devolvio algo que no encaja en el schema (y en que campo), o si simplemente
+      // no llamo a la herramienta. issues trae el detalle exacto de Zod.
+      console.error(`generateValidatedRoadmap intento ${attempt + 1}: respuesta invalida`, JSON.stringify(parsed.error.issues));
+    } catch (err) {
+      console.error(`generateValidatedRoadmap intento ${attempt + 1} fallo:`, err.name, err.message);
     }
   }
   return null;
