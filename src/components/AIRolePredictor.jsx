@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Search, Wand2, AlertTriangle, RotateCcw } from 'lucide-react';
 import RoleDiagnosisCard from './RoleDiagnosisCard';
+import { AI_CUSTOM_PATH_ID } from './ReskillingRoadmap';
 import { supabase } from '../lib/supabaseClient';
 
 const COUNTRY_OPTIONS = [
@@ -26,13 +27,29 @@ function isValidRole(role) {
   );
 }
 
+// Mismo criterio de guardia minima que isValidRole, para el roadmap generado
+// por api/generate-roadmap.js.
+function isValidRoadmap(roadmap) {
+  return (
+    roadmap &&
+    typeof roadmap.toTitle === 'string' &&
+    typeof roadmap.fromTitle === 'string' &&
+    Array.isArray(roadmap.phases) &&
+    roadmap.phases.length === 3 &&
+    Array.isArray(roadmap.keySoftSkills)
+  );
+}
+
 export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
   const [jobTitle, setJobTitle] = useState('');
   const [country, setCountry] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const [result, setResult] = useState(null);
+  const [submittedTitle, setSubmittedTitle] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [lastSubmitted, setLastSubmitted] = useState('');
+  const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
+  const [roadmapError, setRoadmapError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,6 +63,7 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
 
     setStatus('loading');
     setErrorMessage('');
+    setRoadmapError('');
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -81,6 +99,7 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
       }
 
       setResult(body.role);
+      setSubmittedTitle(trimmedTitle);
       setStatus('success');
     } catch {
       setStatus('error');
@@ -88,10 +107,57 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
     }
   };
 
+  // Genera un plan de reskilling a medida para el puesto ya diagnosticado (en vez
+  // de encajarlo en una de las 3 rutas fijas de RESKILLING_PATHS). Usa el mismo
+  // patron cache-primero + limite diario que /api/predict-role.
+  const handleGenerateRoadmap = async (targetRole) => {
+    if (generatingRoadmap) return;
+    setGeneratingRoadmap(true);
+    setRoadmapError('');
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      const response = await fetch('/api/generate-roadmap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ jobTitle: submittedTitle, country: country || null }),
+      });
+
+      if (response.status === 429) {
+        setRoadmapError('Alcanzaste el límite diario de generaciones con IA. Intenta de nuevo mañana.');
+        return;
+      }
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setRoadmapError(body.error || 'No pudimos generar el plan de reskilling. Intenta de nuevo.');
+        return;
+      }
+
+      const body = await response.json();
+      if (!isValidRoadmap(body.roadmap)) {
+        setRoadmapError('Recibimos un plan con formato inesperado. Intenta de nuevo.');
+        return;
+      }
+
+      onSelectRoleForRoadmap(targetRole, AI_CUSTOM_PATH_ID, body.roadmap);
+    } catch {
+      setRoadmapError('No pudimos conectar con el servicio. Verifica tu conexión e intenta de nuevo.');
+    } finally {
+      setGeneratingRoadmap(false);
+    }
+  };
+
   const handleReset = () => {
     setStatus('idle');
     setResult(null);
     setErrorMessage('');
+    setRoadmapError('');
   };
 
   return (
@@ -183,9 +249,16 @@ export default function AIRolePredictor({ onSelectRoleForRoadmap }) {
           </div>
         )}
 
-        {/* Success: render the same diagnosis card as the curated simulator */}
+        {/* Success: render the same diagnosis card as the curated simulator. The roadmap
+            button here generates a plan a medida via /api/generate-roadmap instead of
+            picking one of the 3 fixed RESKILLING_PATHS. */}
         {status === 'success' && result && (
-          <RoleDiagnosisCard role={result} onSelectRoleForRoadmap={onSelectRoleForRoadmap} />
+          <RoleDiagnosisCard
+            role={result}
+            onSelectRoleForRoadmap={handleGenerateRoadmap}
+            isGeneratingRoadmap={generatingRoadmap}
+            roadmapError={roadmapError}
+          />
         )}
 
       </div>

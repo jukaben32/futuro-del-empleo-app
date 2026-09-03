@@ -2,7 +2,7 @@ import React from 'react';
 import { Bot, User, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { getScoreColor } from '../lib/scoreColor';
 
-export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap }) {
+export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap, isGeneratingRoadmap = false, roadmapError = '' }) {
   const scoreTheme = getScoreColor(role.automationScore);
   // Curated roles (SIMULATOR_ROLES) carry their own hand-tuned badgeColor string.
   // AI-generated roles don't (the model is never trusted to emit CSS classes) —
@@ -128,13 +128,19 @@ export default function RoleDiagnosisCard({ role, onSelectRoleForRoadmap }) {
         </div>
 
         {onSelectRoleForRoadmap && (
-          <button
-            onClick={() => onSelectRoleForRoadmap(role.targetTransitionRole, role.suggestedPathId ?? null)}
-            className="shrink-0 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-cyan-500/20"
-          >
-            <span>Ver Plan de Reskilling</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="shrink-0 flex flex-col items-end gap-1.5">
+            <button
+              onClick={() => onSelectRoleForRoadmap(role.targetTransitionRole, role.suggestedPathId ?? null)}
+              disabled={isGeneratingRoadmap}
+              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-wait text-black text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-cyan-500/20"
+            >
+              <span>{isGeneratingRoadmap ? 'Generando plan personalizado...' : 'Ver Plan de Reskilling'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            {roadmapError && (
+              <span className="text-[11px] text-rose-400 max-w-xs text-right">{roadmapError}</span>
+            )}
+          </div>
         )}
       </div>
 

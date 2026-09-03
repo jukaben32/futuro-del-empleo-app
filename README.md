@@ -28,7 +28,8 @@ Los datos viven en [`src/data/futureJobsData.js`](src/data/futureJobsData.js) (~
 
 - **Puerta de entrada por enlace mágico.** `App.jsx` no renderiza nada hasta que hay sesión de Supabase. Sin contraseñas: se pide el correo y llega un enlace de un solo uso.
 - **Predictor de rol con IA.** `AIRolePredictor` acepta *cualquier* puesto escrito a mano y llama a [`api/predict-role.js`](api/predict-role.js), que consulta a `google/gemini-2.5-flash-lite` vía OpenRouter y devuelve un diagnóstico estructurado (score de automatización, qué hará la IA, qué seguirá siendo humano, ruta de transición sugerida).
-- **Defensas del endpoint:** exige token de sesión válido, valida la respuesta del modelo con Zod, reintenta una vez si el modelo devuelve algo malformado, cachea por `(puesto, país)` y limita a 10 predicciones diarias por usuario.
+- **Plan de reskilling a medida.** El simulador curado (9 roles fijos) sigue usando las 3 rutas fijas de `RESKILLING_PATHS`. Pero el predictor de IA ya no encaja cualquier profesión en una de esas 3 casillas: [`api/generate-roadmap.js`](api/generate-roadmap.js) genera un plan de 3 fases *específico* al puesto diagnosticado (herramientas, cursos y duración propios de ese sector), y se muestra como una 4ª pestaña morada junto a las curadas.
+- **Defensas de ambos endpoints:** exigen token de sesión válido, validan la respuesta del modelo con Zod, reintentan una vez si el modelo devuelve algo malformado, cachean por `(puesto, país)` y comparten un límite de 10 generaciones de IA diarias por usuario (diagnóstico + roadmap cuentan para el mismo cupo).
 
 ### 🔜 Fase 2 — Que la app recuerde al usuario
 
@@ -52,7 +53,7 @@ Ahora mismo la app **solo puede recibir a miembros del proyecto de Supabase** (v
 
 ### 💡 Fase 4 — Ideas sin comprometer
 
-Anotadas para no perderlas, no priorizadas: comparar tu rol contra el promedio de tu sector, alertas por correo cuando cambien los datos del WEF, versión en inglés, y recomendación de cursos concretos dentro de cada ruta de reskilling.
+Anotadas para no perderlas, no priorizadas: comparar tu rol contra el promedio de tu sector, alertas por correo cuando cambien los datos del WEF, versión en inglés.
 
 ---
 
@@ -60,15 +61,27 @@ Anotadas para no perderlas, no priorizadas: comparar tu rol contra el promedio d
 
 | Qué | Estado |
 |---|---|
-| Tablas `role_predictions` y `usage_daily` | ✅ Creadas, con RLS activado y sin políticas (solo el service role entra) |
+| Tablas `role_predictions`, `usage_daily` y `reskilling_roadmaps` | ✅ Creadas, con RLS activado y sin políticas (solo el service role entra) |
 | Cabeceras de seguridad | ✅ [`vercel.json`](vercel.json) con CSP, HSTS, `X-Frame-Options`, `Referrer-Policy` y `Permissions-Policy` |
 | Error boundary de React | ✅ [`ErrorBoundary`](src/components/ErrorBoundary.jsx) envuelve la app en `main.jsx` |
-| Tests | ✅ Vitest, 22 tests sobre la lógica pura |
+| Tests | ✅ Vitest, 28 tests sobre la lógica pura |
+| Roadmap de reskilling genérico para profesiones fuera de las 9 curadas | ✅ Ahora se genera a medida, ver [`api/generate-roadmap.js`](api/generate-roadmap.js) |
 | **SMTP de producción** | ⏳ **Pendiente y bloqueante para la Fase 3** — requiere un dominio propio verificado en Resend |
 
 ### Sobre la CSP
 
 La directiva `connect-src` de [`vercel.json`](vercel.json) **lleva la URL de Supabase escrita a mano**. Si algún día cambias de proyecto de Supabase, hay que actualizarla ahí también, o el login dejará de funcionar en producción: el navegador bloqueará las llamadas sin mostrar nada en la interfaz, solo un error en la consola.
+
+### Sobre el roadmap de reskilling generado por IA
+
+Hay **dos caminos distintos** hacia la sección "Plan de Reskilling", y es importante no confundirlos:
+
+- **Simulador curado** (los 9 roles predefinidos de `RoleSimulator`): siempre usa una de las **3 rutas fijas** de `RESKILLING_PATHS` (`src/data/futureJobsData.js`), escritas a mano. Instantáneo, sin costo de IA.
+- **Predictor de texto libre** (`AIRolePredictor`): al pulsar "Ver Plan de Reskilling", llama a [`api/generate-roadmap.js`](api/generate-roadmap.js), que le pide al LLM un plan de 3 fases *específico* a esa profesión — no una de las 3 rutas fijas. Tarda unos segundos (llamada real al modelo) y se cachea por `(puesto, país)` en la tabla `reskilling_roadmaps`, igual que el diagnóstico.
+
+El roadmap generado se agrega como una **4ª pestaña morada**, sin reemplazar las 3 curadas — así el usuario puede seguir comparando. `api/generate-roadmap.js` nunca confía en el `targetRole` que mandaría el navegador: siempre relee el diagnóstico ya cacheado en `role_predictions` para ese `(puesto, país)` y construye el prompt desde ahí.
+
+**El límite diario (10) se comparte entre diagnóstico y roadmap** — generar ambos para una misma profesión gasta 2 de esas 10 acciones. Es una decisión deliberada de simplicidad (un solo contador, una sola tabla `usage_daily`) y no un límite por feature.
 
 ### Qué cubren los tests
 
@@ -83,6 +96,7 @@ Cubren la lógica pura, que es donde un fallo silencioso hace más daño:
 - **`getFriendlyAuthError`** — traducción de los errores de Supabase Auth a mensajes accionables.
 - **`normalizeTitle`** — si falla, `"Contador"` y `"contador "` se cachean por separado y la caché deja de ahorrar dinero.
 - **`rolePredictionSchema`** — la validación que impide que una respuesta malformada del LLM llegue a la interfaz.
+- **`reskillingRoadmapSchema`** — exige exactamente 3 fases numeradas 1, 2 y 3 sin repetir; si el modelo las numera mal, dos fases colisionarían en la misma clave de la UI y una desaparecería del render sin aviso.
 
 No hay tests de componentes React todavía: para una app tan visual, la regresión visual daría más señal que afirmar sobre el marcado.
 

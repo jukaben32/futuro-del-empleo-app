@@ -7,10 +7,15 @@ import {
   TrendingUp,
   BookOpen,
   Check,
-  PartyPopper
+  PartyPopper,
+  Wand2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { RESKILLING_PATHS } from '../data/futureJobsData';
+
+// Id sintetico para el roadmap generado por IA (api/generate-roadmap.js). Nunca
+// colisiona con los 3 ids fijos de RESKILLING_PATHS, que siempre empiezan con "path-".
+export const AI_CUSTOM_PATH_ID = 'ai-custom';
 
 // Maps the free-text target role from RoleSimulator to the closest matching reskilling path.
 // Only 3 paths exist (path-data-analyst, path-ai-specialist, path-operations-ai) but 9 possible
@@ -28,23 +33,32 @@ const TARGET_ROLE_TO_PATH_ID = {
   'Diseñador Pedagógico de Aprendizaje Aumentado': 'path-operations-ai', // advice: AI tools for personalization
 };
 
-export default function ReskillingRoadmap({ targetRole, pathIdOverride }) {
+export default function ReskillingRoadmap({ targetRole, pathIdOverride, customRoadmap }) {
   const [selectedPathId, setSelectedPathId] = useState(RESKILLING_PATHS[0].id);
   const [completedSteps, setCompletedSteps] = useState({}); // { pathId-stepIndex: boolean }
+
+  // Cuando el predictor de IA genera un plan a medida (customRoadmap, desde
+  // api/generate-roadmap.js), se añade como una 4ª pestaña junto a las 3 fijas
+  // en vez de reemplazarlas — asi el usuario puede seguir comparando con las curadas.
+  const paths = customRoadmap
+    ? [...RESKILLING_PATHS, { ...customRoadmap, id: AI_CUSTOM_PATH_ID }]
+    : RESKILLING_PATHS;
 
   // Adjust selection during render when a new target role arrives from RoleSimulator or
   // the AI predictor. pathIdOverride (from the AI predictor, a literal path id chosen by
   // the model) takes priority over the free-text TARGET_ROLE_TO_PATH_ID dictionary lookup.
   const [lastTargetRole, setLastTargetRole] = useState(targetRole);
   const [lastPathIdOverride, setLastPathIdOverride] = useState(pathIdOverride);
-  if (targetRole !== lastTargetRole || pathIdOverride !== lastPathIdOverride) {
+  const [lastCustomRoadmap, setLastCustomRoadmap] = useState(customRoadmap);
+  if (targetRole !== lastTargetRole || pathIdOverride !== lastPathIdOverride || customRoadmap !== lastCustomRoadmap) {
     setLastTargetRole(targetRole);
     setLastPathIdOverride(pathIdOverride);
+    setLastCustomRoadmap(customRoadmap);
     const mappedId = pathIdOverride || (targetRole && TARGET_ROLE_TO_PATH_ID[targetRole]);
     if (mappedId) setSelectedPathId(mappedId);
   }
 
-  const activePath = RESKILLING_PATHS.find(p => p.id === selectedPathId) || RESKILLING_PATHS[0];
+  const activePath = paths.find(p => p.id === selectedPathId) || paths[0];
 
   const toggleStep = (stepNumber) => {
     const key = `${activePath.id}-${stepNumber}`;
@@ -95,21 +109,25 @@ export default function ReskillingRoadmap({ targetRole, pathIdOverride }) {
 
         {/* Path Selector Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
-          {RESKILLING_PATHS.map((path) => {
+          {paths.map((path) => {
             const isSelected = path.id === activePath.id;
+            const isAiCustom = path.id === AI_CUSTOM_PATH_ID;
             return (
               <button
                 key={path.id}
                 onClick={() => setSelectedPathId(path.id)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
                   isSelected
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-black shadow-lg shadow-emerald-500/20 font-bold'
+                    ? isAiCustom
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/20 font-bold'
+                      : 'bg-gradient-to-r from-emerald-600 to-teal-500 text-black shadow-lg shadow-emerald-500/20 font-bold'
                     : 'bg-dark-900 text-slate-300 hover:text-white hover:bg-dark-800 border border-slate-800'
                 }`}
               >
+                {isAiCustom && <Wand2 className="w-3.5 h-3.5" />}
                 <span>{path.toTitle}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                  isSelected ? 'bg-black/20 text-black' : 'bg-dark-800 text-emerald-400'
+                  isSelected ? 'bg-black/20 text-current' : 'bg-dark-800 text-emerald-400'
                 }`}>
                   {path.salaryIncrease}
                 </span>
@@ -122,6 +140,12 @@ export default function ReskillingRoadmap({ targetRole, pathIdOverride }) {
         <div className="glass-panel rounded-2xl p-6 mb-6 border border-emerald-500/30 relative overflow-hidden">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div>
+              {activePath.id === AI_CUSTOM_PATH_ID && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30 mb-2">
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Generado por IA para tu profesión
+                </div>
+              )}
               <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
                 <span>Desde: <strong className="text-rose-400">{activePath.fromTitle}</strong></span>
                 <span>→</span>

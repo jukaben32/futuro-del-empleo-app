@@ -24,6 +24,7 @@ export default function App() {
   const [comparatorJobB, setComparatorJobB] = useState(null);
   const [roadmapPathTarget, setRoadmapPathTarget] = useState(null);
   const [roadmapPathIdOverride, setRoadmapPathIdOverride] = useState(null);
+  const [roadmapCustomData, setRoadmapCustomData] = useState(null);
 
   const handleSelectJobForComparison = (job) => {
     if (!comparatorJobA) {
@@ -36,9 +37,13 @@ export default function App() {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleRoleTransitionToRoadmap = (targetRole, pathIdOverride = null) => {
+  // customRoadmap solo llega desde AIRolePredictor (plan generado por IA a medida).
+  // RoleSimulator llama esta misma funcion con 2 argumentos, asi que customRoadmap
+  // vuelve a null y ReskillingRoadmap usa sus 3 rutas curadas fijas, como siempre.
+  const handleRoleTransitionToRoadmap = (targetRole, pathIdOverride = null, customRoadmap = null) => {
     setRoadmapPathTarget(targetRole);
     setRoadmapPathIdOverride(pathIdOverride);
+    setRoadmapCustomData(customRoadmap);
     const el = document.getElementById('reskilling');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
@@ -111,6 +116,7 @@ export default function App() {
           <ReskillingRoadmap
             targetRole={roadmapPathTarget}
             pathIdOverride={roadmapPathIdOverride}
+            customRoadmap={roadmapCustomData}
           />
 
           {/* 7. ROI Learning & Salary Growth Calculator */}

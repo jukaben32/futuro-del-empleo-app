@@ -13,7 +13,8 @@ create table if not exists role_predictions (
   unique (normalized_title, country)
 );
 
--- Contador diario por usuario: hace cumplir el límite de 10 predicciones/día.
+-- Contador diario por usuario: hace cumplir el límite de 10 acciones de IA/día
+-- (diagnósticos vía predict-role.js y roadmaps vía generate-roadmap.js comparten este cupo).
 create table if not exists usage_daily (
   user_id uuid not null,
   date date not null,
@@ -21,9 +22,25 @@ create table if not exists usage_daily (
   primary key (user_id, date)
 );
 
--- Estas tablas solo las toca la función serverless (api/predict-role.js) con la
--- service role key. Activamos RLS SIN políticas a propósito: el service role se
--- salta RLS y sigue funcionando igual, mientras que cualquier lectura o escritura
--- desde el navegador con la anon key queda bloqueada por defecto.
+-- Caché de roadmaps de reskilling generados por IA (api/generate-roadmap.js), para
+-- profesiones que no encajan en ninguna de las 3 rutas curadas fijas (RESKILLING_PATHS
+-- en src/data/futureJobsData.js). Misma clave de caché que role_predictions: el
+-- roadmap se deriva 1:1 del diagnóstico ya cacheado para ese (puesto, país).
+create table if not exists reskilling_roadmaps (
+  id uuid primary key default gen_random_uuid(),
+  normalized_title text not null,
+  country text not null default 'global',
+  roadmap jsonb not null,
+  model_used text not null,
+  created_at timestamptz not null default now(),
+  unique (normalized_title, country)
+);
+
+-- Estas tablas solo las toca la función serverless (api/predict-role.js y
+-- api/generate-roadmap.js) con la service role key. Activamos RLS SIN políticas
+-- a propósito: el service role se salta RLS y sigue funcionando igual, mientras
+-- que cualquier lectura o escritura desde el navegador con la anon key queda
+-- bloqueada por defecto.
 alter table role_predictions enable row level security;
 alter table usage_daily enable row level security;
+alter table reskilling_roadmaps enable row level security;

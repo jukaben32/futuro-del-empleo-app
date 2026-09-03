@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { SIMULATOR_ROLES } from '../src/data/futureJobsData.js';
 
-const DAILY_LIMIT = 10;
+export const DAILY_LIMIT = 10;
 // google/gemini-2.5-flash-lite via OpenRouter: ~$0.10 / $0.40 per million input/output
 // tokens as of 2026, the cheapest Gemini tier with reliable function/tool-calling support —
 // picked specifically for this high-volume, low-cost, structured-JSON-generation workload.
@@ -26,7 +26,7 @@ export const rolePredictionSchema = z.object({
   suggestedPathId: z.enum(VALID_PATH_IDS).nullable(),
 });
 
-function getSupabaseAdmin() {
+export function getSupabaseAdmin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
