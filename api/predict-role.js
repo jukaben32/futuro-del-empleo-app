@@ -7,6 +7,11 @@ export const DAILY_LIMIT = 10;
 // tokens as of 2026, the cheapest Gemini tier with reliable function/tool-calling support —
 // picked specifically for this high-volume, low-cost, structured-JSON-generation workload.
 const MODEL = 'google/gemini-2.5-flash-lite';
+// Sin esto, un fetch colgado (red o proveedor) espera hasta el limite de la
+// funcion serverless (300s) sin dar ninguna senal al usuario — el boton se ve
+// "pensando" para siempre. Con el timeout, aborta rapido y el reintento de
+// generateValidatedRole tiene una segunda oportunidad real.
+export const OPENROUTER_TIMEOUT_MS = 25000;
 
 export const VALID_COUNTRIES = ['argentina', 'brasil', 'colombia', 'mexico', 'latam', 'global'];
 const VALID_SECTORS = ['tech', 'finance', 'health', 'education', 'industry', 'retail'];
@@ -108,6 +113,7 @@ async function callOpenRouter(jobTitle, country) {
       tools: [EMIT_TOOL],
       tool_choice: { type: 'function', function: { name: 'emit_role_prediction' } },
     }),
+    signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
   });
 
   if (!response.ok) {

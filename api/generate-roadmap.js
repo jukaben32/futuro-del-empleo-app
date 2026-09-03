@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { RESKILLING_PATHS } from '../src/data/futureJobsData.js';
-import { DAILY_LIMIT, getSupabaseAdmin, normalizeTitle, VALID_COUNTRIES } from './predict-role.js';
+import { DAILY_LIMIT, getSupabaseAdmin, normalizeTitle, VALID_COUNTRIES, OPENROUTER_TIMEOUT_MS } from './predict-role.js';
 
 const MODEL = 'google/gemini-2.5-flash-lite';
 
@@ -126,6 +126,11 @@ async function callOpenRouterForRoadmap(diagnosis, country) {
       tools: [EMIT_TOOL],
       tool_choice: { type: 'function', function: { name: 'emit_reskilling_roadmap' } },
     }),
+    // Sin esto, un fetch colgado espera hasta el limite de la funcion serverless
+    // (varios minutos) sin dar ninguna senal — el boton se ve "pensando" para
+    // siempre. Esto es exactamente lo que le paso a un usuario real: la llamada
+    // a OpenRouter se colgo y Vercel mato la funcion recien a los 300s.
+    signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
   });
 
   if (!response.ok) {
