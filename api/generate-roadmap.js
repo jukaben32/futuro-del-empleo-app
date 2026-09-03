@@ -15,7 +15,11 @@ export const reskillingRoadmapSchema = z
     phases: z
       .array(
         z.object({
-          step: z.number().int().min(1).max(3),
+          // coerce: algunos modelos devuelven el numero de fase como string ("1")
+          // en vez de number pese al schema pedido — aceptamos ambos y dejamos
+          // que Zod lo convierta, en vez de rechazar por un problema de tipo que
+          // no afecta el contenido real.
+          step: z.coerce.number().int().min(1).max(3),
           title: z.string().min(3).max(120),
           duration: z.string().min(3).max(40),
           topics: z.array(z.string().min(2).max(160)).min(3).max(5),
@@ -88,7 +92,11 @@ const EMIT_TOOL = {
           items: {
             type: 'object',
             properties: {
-              step: { type: 'integer', enum: [1, 2, 3] },
+              // minimum/maximum en vez de enum: la combinacion "integer" + "enum"
+              // es un patron mas raro en tool-calling y nunca se habia probado
+              // en este proyecto (a diferencia de "string" + "enum", que si
+              // funciona en predict-role.js) — min/max es mas estandar.
+              step: { type: 'integer', minimum: 1, maximum: 3 },
               title: { type: 'string' },
               duration: { type: 'string', description: 'Ej. "Mes 1 - 2".' },
               topics: { type: 'array', items: { type: 'string' }, minItems: 3, maxItems: 5 },

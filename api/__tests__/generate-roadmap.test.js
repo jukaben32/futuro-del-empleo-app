@@ -77,4 +77,28 @@ describe('reskillingRoadmapSchema', () => {
     const { overview: _omitido, ...incompleto } = roadmapValido;
     expect(reskillingRoadmapSchema.safeParse(incompleto).success).toBe(false);
   });
+
+  test('acepta step como string numerico ("1"), no solo como number', () => {
+    // Algunos modelos devuelven el numero de fase como string pese al schema
+    // pedido. Sin coerce, esto rechazaba un roadmap por lo demas perfecto.
+    const stepsComoTexto = {
+      ...roadmapValido,
+      phases: roadmapValido.phases.map((p) => ({ ...p, step: String(p.step) })),
+    };
+    const resultado = reskillingRoadmapSchema.safeParse(stepsComoTexto);
+    expect(resultado.success).toBe(true);
+    expect(resultado.data.phases.map((p) => p.step)).toEqual([1, 2, 3]);
+  });
+
+  test('sigue rechazando un step que no es un numero valido', () => {
+    const stepInvalido = {
+      ...roadmapValido,
+      phases: [
+        { ...roadmapValido.phases[0], step: 'primero' },
+        roadmapValido.phases[1],
+        roadmapValido.phases[2],
+      ],
+    };
+    expect(reskillingRoadmapSchema.safeParse(stepInvalido).success).toBe(false);
+  });
 });
