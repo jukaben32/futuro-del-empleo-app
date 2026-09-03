@@ -89,7 +89,7 @@ export default function LandingPage({ onContinue }) {
           </div>
           <button
             onClick={onContinue}
-            className="px-4 py-2 rounded-xl bg-dark-900 hover:bg-dark-800 border border-slate-700 hover:border-slate-600 text-slate-200 text-xs font-bold transition-all"
+            className="px-4 py-2.5 rounded-xl bg-dark-900 hover:bg-dark-800 border border-slate-700 hover:border-slate-600 text-slate-200 text-xs font-bold transition-all"
           >
             Iniciar sesión
           </button>
@@ -102,7 +102,7 @@ export default function LandingPage({ onContinue }) {
             Informe Oficial WEF 2025-2030
           </span>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-cyan-300 mb-5">
+          <h1 className="text-3xl sm:text-4xl lg:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-cyan-300 mb-5">
             ¿Tu trabajo tiene futuro en la era de la IA?
           </h1>
 
@@ -174,7 +174,7 @@ export default function LandingPage({ onContinue }) {
 
         {/* Final CTA */}
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 text-center">
-          <div className="glass-panel rounded-2xl p-8 border border-cyan-500/20">
+          <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-cyan-500/20">
             <Share2 className="w-6 h-6 text-cyan-400 mx-auto mb-3" />
             <h2 className="text-lg sm:text-xl font-bold text-white mb-2">
               Tu diagnóstico, listo para compartir
@@ -195,10 +195,13 @@ export default function LandingPage({ onContinue }) {
         {/* Minimal footer — sin enlaces a secciones internas, esas viven solo dentro de la app logueada */}
         <footer className="border-t border-slate-800 py-8 text-slate-500 text-[11px]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5 text-cyan-400" /> World Economic Forum</span>
-              <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5 text-purple-400" /> OECD AI Employment Observatory</span>
-              <span className="flex items-center gap-1"><Shield className="w-3.5 h-3.5 text-emerald-400" /> Datos 2025-2030</span>
+            {/* Sin flex-wrap, estas 3 insignias suman ~484px y desbordan un movil de
+                375px (~343px disponibles). flex-wrap las deja caer a una 2ª linea en
+                vez de recortarse o forzar scroll horizontal. */}
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1.5">
+              <span className="flex items-center gap-1 whitespace-nowrap"><Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" /> World Economic Forum</span>
+              <span className="flex items-center gap-1 whitespace-nowrap"><BookOpen className="w-3.5 h-3.5 text-purple-400 shrink-0" /> OECD AI Employment Observatory</span>
+              <span className="flex items-center gap-1 whitespace-nowrap"><Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> Datos 2025-2030</span>
             </div>
             <span>Diseñado con React, Vite y Tailwind CSS.</span>
           </div>
